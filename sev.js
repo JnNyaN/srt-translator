@@ -26,7 +26,6 @@ function srtToJSON(srtData) {
 }
 
 app.post('/translate', async (req, res) => {
-  // အချိန်အကြာကြီး စောင့်နိုင်အောင် timeout ကို တိုးထားပေးပါမယ်
   req.setTimeout(0); 
 
   try {
@@ -34,38 +33,46 @@ app.post('/translate', async (req, res) => {
     if (!srtData) return res.status(400).json({ success: false, error: 'No data provided' });
 
     const allSegments = srtToJSON(srtData);
-    // Chunk size ကို ၅၀ အထိ ထပ်တိုးလိုက်ပါတယ် (Request အကြိမ်ရေ ပိုနည်းသွားအောင်)
-    const chunkSize = 50; 
+    const chunkSize = 40; 
     let translatedFull = [];
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: "Professional Burmese Subtitle Translator. Use conversational 'တယ်/မယ်'. Keep technical terms (syntax, function) in English.",
-      generationConfig: { responseMimeType: 'application/json' }
+      // System Instruction ကို ပိုပြီး တိုတိုနဲ့ ရှင်းရှင်း ပြောင်းလိုက်ပါတယ်
+      systemInstruction: "You are a professional Burmese translator. Translate English subtitles into natural, conversational Burmese. Keep technical terms like JavaScript, syntax, function in English. Return ONLY the translated JSON array.",
+      generationConfig: { 
+        responseMimeType: 'application/json'
+      }
     });
 
     console.log(`Starting: Total segments ${allSegments.length}`);
 
     for (let i = 0; i < allSegments.length; i += chunkSize) {
       const chunk = allSegments.slice(i, i + chunkSize);
-      const prompt = `Translate 'text' into natural Burmese. Return ONLY JSON array. Don't change 'id'/'time'.\n\nInput: ${JSON.stringify(chunk)}`;
+      
+      // Prompt ကို ပိုပြီး Direct ဖြစ်အောင် ပြင်ထားပါတယ်
+      const prompt = `Translate the 'text' values in this JSON array to Burmese: ${JSON.stringify(chunk)}`;
 
       try {
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
-        const cleanedResponse = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        // JSON မဟုတ်တဲ့ စာသားတွေ ပါလာရင် ဖယ်ရှားဖို့
+        const startIdx = responseText.indexOf('[');
+        const endIdx = responseText.lastIndexOf(']') + 1;
+        const cleanedResponse = responseText.substring(startIdx, endIdx);
         
         const translatedChunk = JSON.parse(cleanedResponse);
         translatedFull = translatedFull.concat(translatedChunk);
         
         console.log(`Progress: ${translatedFull.length} / ${allSegments.length}`);
 
-        // Delay ကို ၂ စက္ကန့်ပဲ ထားပါမယ် (Timeout မဖြစ်အောင်လို့ပါ)
         if (i + chunkSize < allSegments.length) {
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
       } catch (err) {
-        console.error(`Chunk Error:`, err.message);
+        console.error(`Chunk ${i} error, skipping translation for this chunk.`);
+        // ဘာသာမပြန်နိုင်ရင် မူရင်းကိုပဲ ထည့်မယ် (ဒါကြောင့် English ပြန်ထွက်လာတာပါ)
         translatedFull = translatedFull.concat(chunk);
       }
     }
@@ -78,7 +85,6 @@ app.post('/translate', async (req, res) => {
 
   } catch (error) {
     console.error('Final Server Error:', error);
-    // ဘယ်လိုပဲ error တက်တက် JSON ပဲ ပြန်အောင် လုပ်ထားပါတယ်
     return res.status(500).json({ success: false, error: error.message });
   }
 });
