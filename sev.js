@@ -31,11 +31,13 @@ app.post('/translate', async (req, res) => {
     if (!srtData) return res.status(400).json({ error: 'No data provided' });
 
     const allSegments = srtToJSON(srtData);
-    const chunkSize = 20;
+    const chunkSize = 20; 
     let translatedFull = [];
 
+    // Model ကို gemini-2.5-flash ပြန်ပြောင်းပေးထားပါတယ်
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
+      systemInstruction: "You are an expert Burmese Subtitle Translator for technical tutorials. Use natural conversational Burmese (ending with တယ်/မယ်/ပါ) and avoid formal language (သည်/သတည်း). Keep core technical terms like 'syntax', 'function', 'variable', 'array', 'loop' in English to help students.",
       generationConfig: {
         responseMimeType: 'application/json'
       }
@@ -47,23 +49,29 @@ app.post('/translate', async (req, res) => {
       const chunk = allSegments.slice(i, i + chunkSize);
 
       const prompt = `
-Translate the 'text' field of these subtitle objects into Myanmar (Burmese) accurately.
-Return ONLY a JSON array.
-Keep 'id' and 'time' exactly the same.
+Translate the 'text' field of the following subtitle objects into natural, mentor-like Burmese. 
+Ensure the meaning flows logically with the context.
+Return ONLY a JSON array. 
+Do NOT change the 'id' and 'time' fields.
 
-Input:
+Input Data:
 ${JSON.stringify(chunk)}
       `.trim();
 
       try {
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
-        const translatedChunk = JSON.parse(responseText);
+        
+        // Markdown backticks များကို ဖယ်ရှားရန်
+        const cleanedResponse = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+        const translatedChunk = JSON.parse(cleanedResponse);
+        
         translatedFull = translatedFull.concat(translatedChunk);
 
         console.log(`Progress: ${translatedFull.length} / ${allSegments.length}`);
       } catch (err) {
         console.error(`Error at chunk ${i}:`, err.message);
+        // Error ဖြစ်ပါက မူရင်း text အတိုင်း ခဏသိမ်းထားမည်
         translatedFull = translatedFull.concat(chunk);
       }
     }
@@ -81,3 +89,4 @@ ${JSON.stringify(chunk)}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
