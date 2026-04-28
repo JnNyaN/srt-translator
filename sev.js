@@ -42,7 +42,8 @@ app.post('/translate', async (req, res) => {
     if (!srtData) return res.status(400).json({ error: 'No data provided' });
 
     const allSegments = srtToJSON(srtData);
-    const chunkSize = 25; // အချိတ်အဆက်မိမိ ဘာသာပြန်နိုင်အောင် size ကို ၂၅ ဝန်းကျင်ထားတာ အကောင်းဆုံးပါ
+    // Render Free Tier သုံးနေရင် timeout မဖြစ်အောင် chunkSize ကို ၁၀-၁၅ လောက်ပဲ ထားဖို့ အကြံပြုပါတယ်
+    const chunkSize = 15; 
     let translatedFull = [];
 
     // Output format ကို အမြဲတမ်း JSON ဖြစ်နေစေဖို့ Schema သတ်မှတ်ခြင်း
@@ -60,7 +61,7 @@ app.post('/translate', async (req, res) => {
     };
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash', // သင့်စက်မှာ အဆင်ပြေတဲ့ version (ဥပမာ- gemini-2.0-flash) ကိုလည်း ပြောင်းနိုင်ပါတယ်
+      model: 'gemini-2.5-flash', // သင်အဆင်ပြေတယ်ဆိုတဲ့ version ကို သုံးထားပါတယ်
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: schema,
@@ -81,7 +82,8 @@ app.post('/translate', async (req, res) => {
         2. Grammar: Use "တယ်/မယ်/ပါ" endings. Avoid literary endings like "သည်/၏/အံ့".
         3. Technical Terms: DO NOT translate terms like "function", "variable", "array", "object", "callback", "promise", "async/await", "component", "state", "props", "hook". Keep them in English.
         4. Transcreation: Make the explanation natural for a developer. If a direct translation sounds like a robot, rewrite it to be clear in Myanmar.
-        5. Structure: Keep "id" and "time" fields unchanged.
+        5. Context: This is a programming tutorial.
+        6. Structure: Keep "id" and "time" fields exactly as they are.
 
         Input JSON:
         ${JSON.stringify(chunk)}
@@ -96,9 +98,13 @@ app.post('/translate', async (req, res) => {
         
         console.log(`Progress: ${translatedFull.length} / ${allSegments.length}`);
       } catch (err) {
-        console.error(`Error at chunk index ${i}:`, err.message);
-        // Error ဖြစ်ခဲ့ရင် မူရင်း English စာသားကိုပဲ ပြန်ထည့်ပြီး ရှေ့ဆက်မယ်
-        translatedFull = translatedFull.concat(chunk);
+        console.error(`❌ Error at chunk index ${i}:`, err.message);
+        
+        // Error ဖြစ်ရင် UI မှာ သိသာအောင် error ပို့ပေးပါမယ်
+        return res.status(500).json({ 
+          success: false, 
+          error: `AI Error at segment ${i}: ${err.message}` 
+        });
       }
     }
 
