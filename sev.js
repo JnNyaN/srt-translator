@@ -26,63 +26,47 @@ function srtToJSON(srtData) {
 }
 
 app.post('/translate', async (req, res) => {
+  // အချိန်အကြာကြီး စောင့်နိုင်အောင် timeout ကို တိုးထားပေးပါမယ်
+  req.setTimeout(0); 
+
   try {
     const { srtData } = req.body;
-    if (!srtData) return res.status(400).json({ error: 'No data provided' });
+    if (!srtData) return res.status(400).json({ success: false, error: 'No data provided' });
 
     const allSegments = srtToJSON(srtData);
-    
-    // Chunk size ကို ၄၀ အထိ တိုးလိုက်ပါတယ် (Request အကြိမ်ရေ လျော့သွားအောင်)
-    const chunkSize = 40; 
+    // Chunk size ကို ၅၀ အထိ ထပ်တိုးလိုက်ပါတယ် (Request အကြိမ်ရေ ပိုနည်းသွားအောင်)
+    const chunkSize = 50; 
     let translatedFull = [];
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: "You are an expert Burmese Subtitle Translator for technical tutorials. Use natural conversational Burmese (ending with တယ်/မယ်/ပါ) and avoid formal language (သည်/သတည်း). Keep core technical terms like 'syntax', 'function', 'variable', 'array', 'loop' in English to help students.",
-      generationConfig: {
-        responseMimeType: 'application/json'
-      }
+      systemInstruction: "Professional Burmese Subtitle Translator. Use conversational 'တယ်/မယ်'. Keep technical terms (syntax, function) in English.",
+      generationConfig: { responseMimeType: 'application/json' }
     });
 
-    console.log(`Starting translation: Total segments ${allSegments.length}`);
+    console.log(`Starting: Total segments ${allSegments.length}`);
 
     for (let i = 0; i < allSegments.length; i += chunkSize) {
       const chunk = allSegments.slice(i, i + chunkSize);
-
-      const prompt = `
-Translate the 'text' field of the following subtitle objects into natural, mentor-like Burmese. 
-Ensure the meaning flows logically with the context.
-Return ONLY a JSON array. 
-Do NOT change the 'id' and 'time' fields.
-
-Input Data:
-${JSON.stringify(chunk)}
-      `.trim();
+      const prompt = `Translate 'text' into natural Burmese. Return ONLY JSON array. Don't change 'id'/'time'.\n\nInput: ${JSON.stringify(chunk)}`;
 
       try {
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();
-        
         const cleanedResponse = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-        const translatedChunk = JSON.parse(cleanedResponse);
         
+        const translatedChunk = JSON.parse(cleanedResponse);
         translatedFull = translatedFull.concat(translatedChunk);
-
+        
         console.log(`Progress: ${translatedFull.length} / ${allSegments.length}`);
 
-        // Chunk တစ်ခုပြီးတိုင်း ၄ စက္ကန့် နားပါမယ် (Rate limit မမိအောင်လို့ပါ)
+        // Delay ကို ၂ စက္ကန့်ပဲ ထားပါမယ် (Timeout မဖြစ်အောင်လို့ပါ)
         if (i + chunkSize < allSegments.length) {
-          console.log("Waiting 4 seconds to avoid Rate Limit...");
-          await new Promise(resolve => setTimeout(resolve, 4000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
-
       } catch (err) {
-        console.error(`Error at chunk ${i}:`, err.message);
-        // Error ဖြစ်ရင် ဇာတ်လမ်းမပြတ်အောင် မူရင်းစာသားကိုပဲ ခေတ္တအစားထိုးမယ်
+        console.error(`Chunk Error:`, err.message);
         translatedFull = translatedFull.concat(chunk);
-        
-        // Error တက်ရင်လည်း ၅ စက္ကန့်လောက် ပိုနားပေးလိုက်မယ်
-        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
 
@@ -90,12 +74,14 @@ ${JSON.stringify(chunk)}
       .map(obj => `${obj.id}\n${obj.time}\n${obj.text}`)
       .join('\n\n');
 
-    res.json({ success: true, srt: finalSRT });
+    return res.json({ success: true, srt: finalSRT });
+
   } catch (error) {
-    console.error('Server Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Final Server Error:', error);
+    // ဘယ်လိုပဲ error တက်တက် JSON ပဲ ပြန်အောင် လုပ်ထားပါတယ်
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
