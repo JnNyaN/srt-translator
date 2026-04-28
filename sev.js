@@ -31,10 +31,10 @@ app.post('/translate', async (req, res) => {
         if (!srtData) return res.status(400).json({ error: "No data provided" });
 
         const allSegments = srtToJSON(srtData);
-        const chunkSize = 20; // စာကြောင်း ၂၀ စီ ခွဲပို့မယ်
+        const chunkSize = 20; 
         let translatedFull = [];
 
-        // Gemini Model Setup with JSON Mode
+        // Gemini Model Setup
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash",
             generationConfig: { responseMimeType: "application/json" }
@@ -45,9 +45,11 @@ app.post('/translate', async (req, res) => {
         for (let i = 0; i < allSegments.length; i += chunkSize) {
             const chunk = allSegments.slice(i, i + chunkSize);
             
-            const prompt = `Translate the 'text' field of these subtitle objects to Myanmar (Burmese) language. 
+            // မြန်မာလို မဖြစ်မနေ ပြန်ခိုင်းတဲ့ Prompt
+            const prompt = `Translate the 'text' field of these subtitle objects into Myanmar (Burmese) language accurately. 
+            Important: You MUST return the translated text in Myanmar Burmese. 
             Return a JSON array of objects. Keep 'id' and 'time' exactly the same.
-            Format: [{"id": "...", "time": "...", "text": "translated_text"}]
+            Format: [{"id": "...", "time": "...", "text": "မြန်မာဘာသာပြန်"}]
             Input: ${JSON.stringify(chunk)}`;
 
             try {
@@ -59,7 +61,6 @@ app.post('/translate', async (req, res) => {
                 console.log(`Progress: ${translatedFull.length} / ${allSegments.length}`);
             } catch (err) {
                 console.error(`Error at chunk ${i}:`, err.message);
-                // Error ဖြစ်ရင် မူရင်း chunk ကိုပဲ ထည့်ပေးလိုက်မယ် (ဘာသာမပြန်ဘဲ ကျော်သွားဖို့)
                 translatedFull = translatedFull.concat(chunk);
             }
         }
