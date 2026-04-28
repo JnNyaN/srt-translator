@@ -34,40 +34,38 @@ app.post('/translate', async (req, res) => {
         const chunkSize = 20; 
         let translatedFull = [];
 
-        // Gemini Model Setup
+        // Gemini Model Setup (Latest Version)
         const model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash-latest",
             generationConfig: { responseMimeType: "application/json" }
         });
 
-        console.log(Starting translation: Total segments ${allSegments.length});
+        console.log(`Starting translation: Total segments ${allSegments.length}`);
 
         for (let i = 0; i < allSegments.length; i += chunkSize) {
             const chunk = allSegments.slice(i, i + chunkSize);
             
-            // မြန်မာလို မဖြစ်မနေ ပြန်ခိုင်းတဲ့ Prompt
-            const prompt = Translate the 'text' field of these subtitle objects into Myanmar (Burmese) language accurately. 
-            Important: You MUST return the translated text in Myanmar Burmese. 
+            const prompt = `Translate the 'text' field of these subtitle objects to Myanmar (Burmese) language.
+            Important: You MUST return the text in Myanmar Burmese.
             Return a JSON array of objects. Keep 'id' and 'time' exactly the same.
             Format: [{"id": "...", "time": "...", "text": "မြန်မာဘာသာပြန်"}]
-            Input: ${JSON.stringify(chunk)};
+            Input: ${JSON.stringify(chunk)}`;
 
             try {
                 const result = await model.generateContent(prompt);
                 const responseText = result.response.text();
                 const translatedChunk = JSON.parse(responseText);
                 translatedFull = translatedFull.concat(translatedChunk);
-                
-                console.log(Progress: ${translatedFull.length} / ${allSegments.length});
+                console.log(`Progress: ${translatedFull.length} / ${allSegments.length}`);
             } catch (err) {
-                console.error(Error at chunk ${i}:, err.message);
+                console.error(`Error at chunk ${i}:`, err.message);
                 translatedFull = translatedFull.concat(chunk);
             }
         }
 
         // JSON ကို SRT Format ပြန်ပြောင်းခြင်း
         const finalSRT = translatedFull.map(obj => 
-            ${obj.id}\n${obj.time}\n${obj.text}
+            `${obj.id}\n${obj.time}\n${obj.text}`
         ).join('\n\n');
 
         res.json({ success: true, srt: finalSRT });
@@ -79,4 +77,4 @@ app.post('/translate', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(Server: http://localhost:${PORT}));
+app.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));
