@@ -34,9 +34,9 @@ app.post('/translate', async (req, res) => {
         const chunkSize = 20; 
         let translatedFull = [];
 
-        // Gemini Model Setup (Latest Version)
+        // Gemini Model Setup (Error မတက်အောင် ပြင်ထားသည်)
         const model = genAI.getGenerativeModel({
-            model: "gemini-1.5-flash-latest",
+            model: "gemini-1.5-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
 
@@ -45,7 +45,7 @@ app.post('/translate', async (req, res) => {
         for (let i = 0; i < allSegments.length; i += chunkSize) {
             const chunk = allSegments.slice(i, i + chunkSize);
             
-            const prompt = `Translate the 'text' field of these subtitle objects to Myanmar (Burmese) language.
+            const prompt = `Translate the 'text' field of these subtitle objects to Myanmar (Burmese) language accurately.
             Important: You MUST return the text in Myanmar Burmese.
             Return a JSON array of objects. Keep 'id' and 'time' exactly the same.
             Format: [{"id": "...", "time": "...", "text": "မြန်မာဘာသာပြန်"}]
@@ -78,3 +78,4 @@ app.post('/translate', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server: http://localhost:${PORT}`));
+
